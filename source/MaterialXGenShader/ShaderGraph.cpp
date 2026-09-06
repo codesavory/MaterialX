@@ -12,7 +12,6 @@
 
 #include <MaterialXTrace/Tracing.h>
 
-#include <iostream>
 #include <queue>
 
 MATERIALX_NAMESPACE_BEGIN
@@ -1195,12 +1194,21 @@ void ShaderGraph::setVariableNames(GenContext& context)
 void ShaderGraph::populateColorTransformMap(ColorManagementSystemPtr colorManagementSystem, ShaderPort* shaderPort,
                                             const string& sourceColorSpace, const string& targetColorSpace, bool asInput)
 {
+    // A no-op color space (e.g. the spec-reserved "none"/"data" names, or any additional
+    // name recognized by the color management system) requires no transform, so the port's
+    // color space is left unset, just as it is for an empty or matching source/target pair.
+    auto isNoOpColorSpace = [&colorManagementSystem](const string& colorSpace)
+    {
+        return colorManagementSystem ? colorManagementSystem->isNoOpColorSpace(colorSpace) :
+                                        ColorManagementSystem::isReservedNoOpColorSpace(colorSpace);
+    };
+
     if (!shaderPort ||
         sourceColorSpace.empty() ||
         targetColorSpace.empty() ||
         sourceColorSpace == targetColorSpace ||
-        sourceColorSpace == "none" ||
-        targetColorSpace == "none")
+        isNoOpColorSpace(sourceColorSpace) ||
+        isNoOpColorSpace(targetColorSpace))
     {
         return;
     }
@@ -1227,8 +1235,8 @@ void ShaderGraph::populateColorTransformMap(ColorManagementSystemPtr colorManage
             }
             else
             {
-                std::cerr << "Unsupported color space transform from " <<
-                              sourceColorSpace << " to " << targetColorSpace << std::endl;
+                throw ExceptionShaderGenError("Unsupported color space transform from '" +
+                                              sourceColorSpace + "' to '" + targetColorSpace + "'.");
             }
         }
     }
